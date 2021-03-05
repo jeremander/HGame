@@ -65,6 +65,7 @@ instance Show TicTacToeState where
 instance GameState TicTacToeState where
     isTerminal (TicTacToeState board@(Board tiles) _) = (Blank `notElem` tiles) || (winner board /= Blank)
     outcome (TicTacToeState board _) = Winner $ winner board
+    validActions (TicTacToeState (Board tiles) _) = TicTacToeAction <$> [k | k <- [1..9], tiles !! (k - 1) == Blank]
     validateAction (TicTacToeState (Board tiles) _) action@(TicTacToeAction k)
         | (1 <= k) && (k <= 9) = case (tiles !! (k - 1)) of
             Blank -> Right action
@@ -94,3 +95,6 @@ mkTicTacToe p1 p2 = Game { initialState = return ticTacToeStart, getPlayer = fun
 
 humanTicTacToe :: TicTacToe IO
 humanTicTacToe = mkTicTacToe humanPlayer humanPlayer
+
+ticTacToeExhaust :: TicTacToe []
+ticTacToeExhaust = gameExhaust ticTacToeStart

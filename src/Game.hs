@@ -28,6 +28,8 @@ class GameState s where
     isTerminal :: s -> Bool
     -- gets the outcome of the game (assuming it is in a terminal state)
     outcome :: s -> Outcome s
+    -- all valid actions
+    validActions :: s -> [Act s]
     -- validates an action for the given state, wrapping the action in an Either
     validateAction :: s -> Act s -> Either String (Act s)
     validateAction _ action = Right action
@@ -50,7 +52,9 @@ class (GameState s) => GameInfo s where
     showPlayerInfo :: (Show (Info s)) => s -> IO ()
     showPlayerInfo = liftIO . print . getPlayerInfo
 
--- class (MonadIO m, GameState s, GameAction m s, Read (Act s), GameInfo s, Show (Info s)) => HumanPlayer m s where
+-- list of states and actions (in reverse order) providing the full history of a game
+type GameHistory s = ([s], [Act s])
+
 -- shows player the current available state info, prompts for an action, and then reads it from stdin
 humanPlayer :: (MonadIO m, GameState s, GameAction m s, Read (Act s), GameInfo s, Show (Info s)) => Player m s
 humanPlayer state = do
@@ -68,6 +72,9 @@ humanPlayer state = do
             liftIO $ putStrLn err
             humanPlayer state
 
+exhaustActions :: (GameState s, GameAction m s, GameInfo s) => Player [] s
+exhaustActions = validActions
+
 data Game m s = Game {
     -- initial state of the game
     initialState :: m s,
@@ -75,22 +82,39 @@ data Game m s = Game {
     getPlayer :: s -> Player m s
 }
 
--- given state, runs the current player's chosen action to get to the next state
-playRound :: (Monad m, GameAction m s) => Game m s -> s -> m s
+-- given state, gets the current player's chosen action and runs it to get to the next state
+-- returns both the action and the state
+playRound :: (Monad m, GameAction m s) => Game m s -> s -> m (Act s, s)
 playRound game state = do
     let player = getPlayer game state
     action <- player state
-    runAction state action
+    state' <- runAction state action
+    return (action, state')
 
--- plays repeated rounds until the game is in a terminal state
+-- plays a game to completion, returning the final game state
 runGame :: (Monad m, GameState s, GameAction m s) => Game m s -> m s
-runGame game = initialState game >>= iterateUntilM isTerminal (playRound game)
+runGame game = initialState game >>= iterateUntilM isTerminal (fmap snd . playRound game)
 
+-- plays a game to completion, returning the game history
+runGameWithHistory :: (Monad m, GameState s, GameAction m s) => Game m s -> m (GameHistory s)
+runGameWithHistory game = history >>= iterateUntilM isTerminal' playRound'
+    where
+        history = (\state -> ([state], [])) <$> initialState game
+        isTerminal' (states, _) = isTerminal $ head states
+        playRound' (states, actions) = do
+            (action, state) <- playRound game (head states)
+            return (state : states, action : actions)
+
+-- runs game from start to finish in a monad extending IO
 runGameIO :: (MonadIO m, GameState s, Show s, Show (Outcome s), GameAction m s) => Game m s -> m ()
 runGameIO game = do
     state <- runGame game
     liftIO $ print state
     liftIO $ print $ outcome state
+
+-- given an initial state, constructs a Game that fully exhausts all actions
+gameExhaust :: (GameState s) => s -> Game [] s
+gameExhaust state = Game { initialState = [state], getPlayer = const validActions }
 
 class Turn t where
     -- advances to the next turn
