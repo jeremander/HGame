@@ -10,11 +10,19 @@
 module Game where
 
 import Control.Monad (void)
+import Control.Monad.Identity
 import Control.Monad.Loops (iterateUntilM)
 import Control.Monad.State (liftIO, MonadIO, State)
 import Data.Char (toLower)
-import Data.List (isPrefixOf)
+import Data.List (isPrefixOf, nub)
+import System.IO (hFlush, stdout)
 import Text.Read (readMaybe)
+
+type Prompt = String
+
+-- prints a prompt, then flushes stdout
+putPrompt :: Prompt -> IO ()
+putPrompt prompt = putStr prompt >> hFlush stdout
 
 -- maps from state type to action type
 type family Act s :: *
@@ -35,8 +43,6 @@ class GameState s where
     validateAction _ action = Right action
 
 type Player m s = s -> m (Act s)
--- type HumanPlayer s = Player IO s
-type AIPlayer g s = Player (State g) s
 
 class (Monad m, GameState s) => GameAction m s where
     -- performs an action on a state to get to the next state (may be nondeterministic)
@@ -44,6 +50,10 @@ class (Monad m, GameState s) => GameAction m s where
     -- reads an action from stdin, wrapped in Maybe
     readAction :: (MonadIO m, Read (Act s)) => s -> m (Maybe (Act s))
     readAction _ = liftIO $ readMaybe <$> getLine
+
+-- for deterministic games, gets the set of child states for each state
+childStates :: (Eq s, GameState s, GameAction Identity s) => s -> [s]
+childStates state = nub [runIdentity $ runAction state action | action <- validActions state]
 
 class (GameState s) => GameInfo s where
     -- gets info available to the current player
@@ -56,10 +66,10 @@ class (GameState s) => GameInfo s where
 type GameHistory s = ([s], [Act s])
 
 -- shows player the current available state info, prompts for an action, and then reads it from stdin
-humanPlayer :: (MonadIO m, GameState s, GameAction m s, Read (Act s), GameInfo s, Show (Info s)) => Player m s
-humanPlayer state = do
+humanPlayer :: (MonadIO m, GameState s, GameAction m s, Read (Act s), GameInfo s, Show (Info s)) => Prompt -> Player m s
+humanPlayer prompt state = do
     liftIO $ showPlayerInfo state
-    liftIO $ putStr "> "
+    liftIO $ putPrompt prompt
     mAction <- readAction state
     case mAction of
         Nothing -> tryAgain state "ERROR: invalid input"
@@ -70,7 +80,7 @@ humanPlayer state = do
     where
         tryAgain state err = do
             liftIO $ putStrLn err
-            humanPlayer state
+            humanPlayer prompt state
 
 exhaustActions :: (GameState s, GameAction m s, GameInfo s) => Player [] s
 exhaustActions = validActions
@@ -127,6 +137,7 @@ class Turn t where
 
 -- with a fixed number of players, stores this number and the index of the current player's turn
 data TurnRotating = TurnRot !Int !Int
+    deriving (Eq, Ord)
 
 instance Turn TurnRotating where
     nextTurn (TurnRot n i) = TurnRot n ((i + 1) `mod` n)
@@ -137,7 +148,7 @@ instance Show TurnRotating where
 
 -- alternating turns between two players
 newtype Turn2P = Turn2P Bool
-    deriving Enum
+    deriving (Enum, Eq, Ord)
 
 instance Turn Turn2P where
     nextTurn (Turn2P b) = Turn2P $ not b
@@ -145,3 +156,25 @@ instance Turn Turn2P where
 
 instance Show Turn2P where
     show = showTurn
+
+-- MENU
+
+data Menu a = Menu {
+    title :: String,
+    options :: [(String, String, a)],
+    prompt :: Prompt,
+    caseSensitive :: Bool
+}
+
+getMenuInput :: Menu a -> IO a
+getMenuInput menu = do
+    putStrLn $ title menu
+    sequence_ [printOpt key descr | (key, descr, _) <- options menu]
+    putPrompt $ prompt menu
+    input <- getLine
+    let input' = caseFunc input
+    maybe (getMenuInput menu) return (lookup input' optMap)
+    where
+        caseFunc = if (caseSensitive menu) then id else (map toLower)
+        printOpt key descr = putStrLn $ key ++ ": " ++ descr
+        optMap = [(caseFunc key, val) | (key, _, val) <- options menu]

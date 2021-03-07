@@ -1,18 +1,22 @@
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module TicTacToe where
+module Examples.TicTacToe where
 
+import Control.Monad.Identity
+import Control.Monad.Random
 import Data.List (intercalate)
 import Data.List.Split (chunksOf)
 
+import AI
 import Game
 
 
 data Tile = X | O | Blank
-    deriving (Enum, Eq)
+    deriving (Enum, Eq, Ord)
 
 instance Show Tile where
     show tile = case tile of
@@ -28,6 +32,7 @@ instance Show Winner where
         _     -> show tile ++ " wins!"
 
 newtype Board = Board [Tile]
+    deriving (Eq, Ord)
 
 instance Show Board where
     show (Board tiles) = top ++ intercalate middle (showRow <$> rows) ++ bottom
@@ -53,6 +58,7 @@ winner (Board tiles)
         oWins = maskWins $ getMask O
 
 data TicTacToeState = TicTacToeState Board Turn2P
+    deriving (Eq, Ord)
 newtype TicTacToeAction = TicTacToeAction Int
     deriving (Read, Show) via Int
 type instance Act TicTacToeState = TicTacToeAction
@@ -93,8 +99,53 @@ mkTicTacToe :: (Monad m) => TicTacToePlayer m -> TicTacToePlayer m -> TicTacToe 
 mkTicTacToe p1 p2 = Game { initialState = return ticTacToeStart, getPlayer = func }
     where func (TicTacToeState _ (Turn2P b)) = if b then p2 else p1
 
-humanTicTacToe :: TicTacToe IO
-humanTicTacToe = mkTicTacToe humanPlayer humanPlayer
+ticTacToePrompt = "Select square (1-9)\n> "
+
+humanPlayer' :: (MonadIO m, GameState s, GameAction m s, Read (Act s), GameInfo s, Show (Info s)) => Player m s
+humanPlayer' = humanPlayer ticTacToePrompt
+
+twoPlayerTicTacToe :: TicTacToe IO
+twoPlayerTicTacToe = mkTicTacToe humanPlayer' humanPlayer'
 
 ticTacToeExhaust :: TicTacToe []
 ticTacToeExhaust = gameExhaust ticTacToeStart
+
+ticTacToeTurn :: TicTacToeState -> IsTurn TicTacToeState
+ticTacToeTurn (TicTacToeState _ (Turn2P b)) (TicTacToeState _ (Turn2P b')) = b == b'
+
+ticTacToeEval :: GameEval TicTacToeState Int
+ticTacToeEval = GameEval {
+    isTurn = \(TicTacToeState _ (Turn2P b)) -> not b,
+    stateEval = \(TicTacToeState board _) -> case winner board of
+        X -> 1
+        O -> -1
+        _ -> 0
+}
+
+ticTacToeEvalMemo = memoizeGameEval ticTacToeEval
+
+minimaxTicTacToePlayer :: (Monad m) => Player (RandT StdGen m) TicTacToeState
+minimaxTicTacToePlayer = minimaxAiPlayer ticTacToeEvalMemo
+
+onePlayerTicTacToe1 :: TicTacToe (RandT StdGen IO)
+onePlayerTicTacToe1 = mkTicTacToe humanPlayer' minimaxTicTacToePlayer
+
+onePlayerTicTacToe2 :: TicTacToe (RandT StdGen IO)
+onePlayerTicTacToe2 = mkTicTacToe minimaxTicTacToePlayer humanPlayer'
+
+zeroPlayerTicTacToe :: TicTacToe (RandT StdGen Identity)
+zeroPlayerTicTacToe = mkTicTacToe minimaxTicTacToePlayer minimaxTicTacToePlayer
+
+ticTacToeMenu :: Menu (TicTacToe (RandT StdGen IO))
+ticTacToeMenu = Menu {
+    title = "Choose player",
+    options = [("X", "Player 1", onePlayerTicTacToe1), ("O", "Player 2", onePlayerTicTacToe2)],
+    prompt = "> ",
+    caseSensitive = False
+}
+
+playTicTacToe :: IO ()
+playTicTacToe = do
+    game <- getMenuInput ticTacToeMenu
+    gen <- newStdGen
+    evalRandT (runGameIO game) gen

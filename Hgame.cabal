@@ -4,16 +4,16 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 54110e4d6b6ee6264e1950a16de9a9c0c41ba3b63e4b2901590d43cee59c58fb
+-- hash: a19223e617b5b21fb2bd341b3947a55a747eb0e2bbfe5fc1576e7de37f467fb2
 
 name:           Hgame
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/Hgame#readme>
-homepage:       https://github.com/githubuser/Hgame#readme
-bug-reports:    https://github.com/githubuser/Hgame/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2021 Author name here
+homepage:       https://github.com/jeremander/Hgame#readme
+bug-reports:    https://github.com/jeremander/Hgame/issues
+author:         Jeremy Silver
+maintainer:     jeremys@nessiness.com
+copyright:      2021 Jeremy Silver
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -23,32 +23,42 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/Hgame
+  location: https://github.com/jeremander/Hgame
 
 library
   exposed-modules:
+      AI
+      Examples.TicTacToe
       Game
   other-modules:
       Paths_Hgame
   hs-source-dirs:
       src
   build-depends:
-      base >=4.7 && <5,
-      monad-loops,
-      mtl,
-      split
+      MonadRandom
+    , base >=4.7 && <5
+    , monad-loops
+    , monad-memo
+    , mtl
+    , split
   default-language: Haskell2010
 
-executable Hgame-exe
-  main-is: Main.hs
+executable hgame-tictactoe
+  main-is: TicTacToe.hs
   other-modules:
+      Main
       Paths_Hgame
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is TicTacToe
   build-depends:
       Hgame
+    , MonadRandom
     , base >=4.7 && <5
+    , monad-loops
+    , monad-memo
+    , mtl
+    , split
   default-language: Haskell2010
 
 test-suite Hgame-test
@@ -61,5 +71,10 @@ test-suite Hgame-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Hgame
+    , MonadRandom
     , base >=4.7 && <5
+    , monad-loops
+    , monad-memo
+    , mtl
+    , split
   default-language: Haskell2010

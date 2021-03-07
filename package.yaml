@@ -1,10 +1,10 @@
 name:                Hgame
 version:             0.1.0.0
-github:              "githubuser/Hgame"
+github:              "jeremander/Hgame"
 license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2021 Author name here"
+author:              "Jeremy Silver"
+maintainer:          "jeremys@nessiness.com"
+copyright:           "2021 Jeremy Silver"
 
 extra-source-files:
 - README.md
@@ -21,13 +21,20 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
+- monad-loops
+- monad-memo
+- MonadRandom
+- mtl
+- split
 
 library:
   source-dirs: src
 
 executables:
-  Hgame-exe:
-    main:                Main.hs
+  hgame-tictactoe:
+    main: TicTacToe
+    # main:                Main.hs
+    # main-is:             TicTacToe.hs
     source-dirs:         app
     ghc-options:
     - -threaded
