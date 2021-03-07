@@ -6,6 +6,7 @@ module AI where
 import Control.Monad.Identity
 import Control.Monad.Memo
 import Control.Monad.Random
+import Data.Maybe (fromMaybe)
 
 import Game
 
@@ -34,11 +35,12 @@ getBestActions eval state = [action | action <- validActions state, eval (runIde
         children = childStates state
         score = eval state
 
+-- given a StateEval, returns a Player that choosen a random action from the set of best actions
 aiPlayer :: (Eq s, GameState s, GameAction Identity s, Eq v, MonadRandom m) => StateEval s v -> Player m s
 aiPlayer eval state = fromList [(action, 1) | action <- actions]
     where actions = getBestActions eval state
 
--- given a GameEval that identifies the current player's turn and evaluates terminal states, IsTurn function determining whose turn it is, and an Eval that evaluates terminal states, returns an Eval that evaluates every state (using minimax criterion w.r.t. the player at the current state)
+-- given a GameEval that identifies the current player's turn and evaluates terminal states, returns an Eval that evaluates every state (using minimax criterion w.r.t. the player at the current state)
 minimax :: (Eq s, GameState s, GameAction Identity s, Real v) => GameEval s v -> StateEval s v
 minimax ge state
     | isTerminal state = (stateEval ge) state
@@ -46,5 +48,21 @@ minimax ge state
     | otherwise = minimum childScores
         where childScores = minimax ge <$> childStates state
 
+-- a heuristic is something that optionally computes a value on a state
+type Heuristic s v = StateEval s (Maybe v)
+
+-- applies a heuristic before using a default StateEval
+applyHeuristic :: Heuristic s v -> StateEval s v -> StateEval s v
+applyHeuristic heur eval state = fromMaybe (eval state) (heur state)
+
+-- composes multiple heuristics into one
+composeHeuristics :: [Heuristic s v] -> Heuristic s v
+composeHeuristics = foldr applyHeuristic' (const Nothing)
+    where
+        applyHeuristic' heur1 heur2 state = case heur1 state of
+            Just val -> Just val
+            Nothing  -> heur2 state
+
+-- given a GameEval, computes the minimax StateEval function
 minimaxAiPlayer :: (Eq s, GameState s, GameAction Identity s, Real v, MonadRandom m) => GameEval s v -> Player m s
 minimaxAiPlayer = aiPlayer . minimax

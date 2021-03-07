@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a19223e617b5b21fb2bd341b3947a55a747eb0e2bbfe5fc1576e7de37f467fb2
+-- hash: 479693a61eb7f7f4d17609dccfe8cead194f5f5fe12c96e0abd0ea30ba06d830
 
 name:           Hgame
 version:        0.1.0.0
@@ -50,7 +50,7 @@ executable hgame-tictactoe
       Paths_Hgame
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -main-is TicTacToe
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2 -main-is TicTacToe
   build-depends:
       Hgame
     , MonadRandom

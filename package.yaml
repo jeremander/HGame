@@ -33,13 +33,12 @@ library:
 executables:
   hgame-tictactoe:
     main: TicTacToe
-    # main:                Main.hs
-    # main-is:             TicTacToe.hs
     source-dirs:         app
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -O2
     dependencies:
     - Hgame
 
